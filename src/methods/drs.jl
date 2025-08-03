@@ -157,7 +157,6 @@ function drs(A::Matrix{Float64}, lambda::Float64, eps_abs::Float64, eps_rel::Flo
             r0 = norm(X - Xh)
             eps_tol = eps_abs + eps_rel * r0
         end
-        end
         V += X - Xh
         if fixed_tol && (stop_crit == "Opt")
             pri_res = primal_residual(A, Xh, proj_data, problem)
@@ -165,16 +164,16 @@ function drs(A::Matrix{Float64}, lambda::Float64, eps_abs::Float64, eps_rel::Flo
             if (pri_res <= eps_opt) && (dual_res <= eps_opt)
                 break
             end
-        elseif fixed_tol && (stop_crit == "Fixed_Point")
-            res = norm(X - Xh)
-            if res <= eps_opt
-                break
-            end
         elseif !fixed_tol && (stop_crit == "Opt")
             pri_res = primal_residual_matrix(A, Xh, proj_data, problem)
             dual_res = dual_residual_matrix(A, Xh, V, lambda, proj_data, problem)
             res = hcat(pri_res, dual_res)
             if norm(res) <= eps_tol
+                break
+            end
+        elseif fixed_tol && (stop_crit == "Fixed_Point")
+            res = norm(X - Xh)
+            if res <= eps_opt
                 break
             end
         elseif !fixed_tol && (stop_crit == "Fixed_Point")

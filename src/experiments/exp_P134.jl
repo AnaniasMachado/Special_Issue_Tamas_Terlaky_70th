@@ -86,10 +86,10 @@ for mat_file in mat_files
         min_unsolvable_m[d] = Inf
     end
 
-    H_div_mr_norm_0 = -1.0
-    H_div_AMP_norm_0 = -1.0
-    H_div_AMP_norm_1 = -1.0
-    H_rank_ratio = -1.0
+    bound_ratio = -1.0
+    norm_0_ratio = -1.0
+    norm_1_ratio = -1.0
+    rank_ratio = -1.0
     time = -1.0
     if (m < min_unsolvable_m[d])
         if method == "Gurobi"
@@ -184,16 +184,20 @@ for mat_file in mat_files
                 norm_1_ratio = H_norm_1 / norm(AMP, 1)
                 rank_ratio = H_rank / r
 
-                if fixed_tol
-                    solution_filename = "DRS/problem_$(problem)_m_$(m)_n_$(n)_d_$(d)_idx_$(idx)"
+                if fixed_tol && stop_crit == "Opt"
+                    solution_filename = "DRS_Opt_Eps/problem_$(problem)_m_$(m)_n_$(n)_d_$(d)_idx_$(idx)"
                     solution_filepath = joinpath(solutions_folder, solution_filename)
                     matwrite(solution_filepath, Dict("H" => H, "time" => time, "k" => k))
-                elseif stop_crit == "Boyd"
-                    solution_filename = "DRS_Boyd/problem_$(problem)_m_$(m)_n_$(n)_d_$(d)_idx_$(idx)"
+                elseif !fixed_tol && stop_crit == "Opt"
+                    solution_filename = "DRS_Opt_r0/problem_$(problem)_m_$(m)_n_$(n)_d_$(d)_idx_$(idx)"
                     solution_filepath = joinpath(solutions_folder, solution_filename)
                     matwrite(solution_filepath, Dict("H" => H, "time" => time, "k" => k))
-                elseif stop_crit == "Fixed_Point"
-                    solution_filename = "DRS_FP/problem_$(problem)_m_$(m)_n_$(n)_d_$(d)_idx_$(idx)"
+                elseif fixed_tol && stop_crit == "Fixed_Point"
+                    solution_filename = "DRS_FP_Eps/problem_$(problem)_m_$(m)_n_$(n)_d_$(d)_idx_$(idx)"
+                    solution_filepath = joinpath(solutions_folder, solution_filename)
+                    matwrite(solution_filepath, Dict("H" => H, "time" => time, "k" => k))
+                elseif !fixed_tol && stop_crit == "Fixed_Point"
+                    solution_filename = "DRS_FP_r0/problem_$(problem)_m_$(m)_n_$(n)_d_$(d)_idx_$(idx)"
                     solution_filepath = joinpath(solutions_folder, solution_filename)
                     matwrite(solution_filepath, Dict("H" => H, "time" => time, "k" => k))
                 end
@@ -203,91 +207,50 @@ for mat_file in mat_files
         end
     end
 
-    if method == "DRS"
-        bound_ratio = -1.0
-        norm_0_ratio = -1.0
-        norm_1_ratio = -1.0
-        rank_ratio = -1.0
-        time = -1.0
-        if (m < min_unsolvable_m)
-            time = @elapsed begin
-                H, k = drs(A, lambda, eps_abs, eps_rel, problem, fixed_tol, eps_opt, stop_crit, time_limit)
-            end
-            if H == "-"
-                global min_unsolvable_m = min(m, min_unsolvable_m)
-            else
-                H_norm_0 = matrix_norm_0(H)
-                H_norm_1 = norm(H, 1)
-                H_rank = calculate_rank(H)
+    push!(bound_ratio_list, bound_ratio)
+    push!(norm_0_ratio_list, norm_0_ratio)
+    push!(norm_1_ratio_list, norm_1_ratio)
+    push!(rank_ratio_list, rank_ratio)
+    push!(time_list, time)
 
-                bound_ratio = H_norm_0 / (m * r)
-                norm_0_ratio = H_norm_0 / matrix_norm_0(AMP)
-                norm_1_ratio = H_norm_1 / norm(AMP, 1)
-                rank_ratio = H_rank / r
+    GC.gc()
 
-                if fixed_tol
-                    solution_filename = "DRS/problem_$(problem)_m_$(m)_n_$(n)_idx_$(idx)"
-                    solution_filepath = joinpath(solutions_folder, solution_filename)
-                    matwrite(solution_filepath, Dict("H" => H, "time" => time, "k" => k))
-                elseif stop_crit == "Boyd"
-                    solution_filename = "DRS_Boyd/problem_$(problem)_m_$(m)_n_$(n)_idx_$(idx)"
-                    solution_filepath = joinpath(solutions_folder, solution_filename)
-                    matwrite(solution_filepath, Dict("H" => H, "time" => time, "k" => k))
-                elseif stop_crit == "Fixed_Point"
-                    solution_filename = "DRS_FP/problem_$(problem)_m_$(m)_n_$(n)_idx_$(idx)"
-                    solution_filepath = joinpath(solutions_folder, solution_filename)
-                    matwrite(solution_filepath, Dict("H" => H, "time" => time, "k" => k))
-                end
-            end
+    if count % num_idx == 0
+        bound_ratio_mean = -1.0
+        norm_0_ratio_mean = -1.0
+        norm_1_ratio_mean = -1.0
+        rank_ratio_mean = -1.0
+        time_mean = -1.0
+
+        if !(-1.0 in bound_ratio_list)
+            bound_ratio_mean = mean(bound_ratio_list)
+            norm_0_ratio_mean = mean(norm_0_ratio_list)
+            norm_1_ratio_mean = mean(norm_1_ratio_list)
+            rank_ratio_mean = mean(rank_ratio_list)
+            time_mean = mean(time_list)
         end
 
-        push!(bound_ratio_list, bound_ratio)
-        push!(norm_0_ratio_list, norm_0_ratio)
-        push!(norm_1_ratio_list, norm_1_ratio)
-        push!(rank_ratio_list, rank_ratio)
-        push!(time_list, time)
-    
+        result = DataFrame(
+            m = [m],
+            n = [n],
+            r = [r],
+            d = [d],
+            bound_ratio_mean = [bound_ratio_mean],
+            norm_0_ratio_mean = [norm_0_ratio_mean],
+            norm_1_ratio_mean = [norm_1_ratio_mean],
+            rank_ratio_mean = [rank_ratio_mean],
+            time_mean = [time_mean]
+        )
+
+        append!(df, result)
+
+        empty!(bound_ratio_list)
+        empty!(norm_0_ratio_list)
+        empty!(norm_1_ratio_list)
+        empty!(rank_ratio_list)
+        empty!(time_list)
+
         GC.gc()
-
-        if count % num_idx == 0
-            bound_ratio = -1.0
-            norm_0_ratio = -1.0
-            norm_1_ratio = -1.0
-            rank_ratio = -1.0
-            time = -1.0
-
-            if !(-1.0 in bound_ratio_list)
-                bound_ratio_mean = mean(bound_ratio_list)
-                norm_0_ratio_mean = mean(norm_0_ratio_list)
-                norm_1_ratio_mean = mean(norm_1_ratio_list)
-                rank_ratio_mean = mean(rank_ratio_list)
-                time_mean = mean(time_list)
-            end
-
-            result = DataFrame(
-                m = [m],
-                n = [n],
-                r = [r],
-                d = [d],
-                bound_ratio_mean = [bound_ratio_mean],
-                norm_0_ratio_mean = [norm_0_ratio_mean],
-                norm_1_ratio_mean = [norm_1_ratio_mean],
-                rank_ratio_mean = [rank_ratio_mean],
-                time_mean = [time_mean]
-            )
-
-            append!(df, result)
-
-            empty!(bound_ratio_list)
-            empty!(norm_0_ratio_list)
-            empty!(norm_1_ratio_list)
-            empty!(rank_ratio_list)
-            empty!(time_list)
-
-            GC.gc()
-        end
-    else
-        throw(ErrorException("Invalid method chose."))
     end
 end
 
@@ -300,17 +263,31 @@ elseif method == "Gurobi_Cal"
     results_filename = "results_$(problem)_Gurobi_Cal.csv"
     results_filepath = joinpath(results_folder, results_filename)
     CSV.write(results_filepath, df)
-elseif method == "DRS"
+elseif method == "ADMM"
     if fixed_tol
-        results_filename = "results_$(problem)_DRS.csv"
-        results_filepath = joinpath(results_folder, results_filename)
-        CSV.write(results_filepath, df)
-    elseif !fixed_tol && stop_crit == "Boyd"
-        results_filename = "results_$(problem)_DRS_Boyd.csv"
+        results_filename = "results_$(problem)_ADMMe.csv"
         results_filepath = joinpath(results_folder, results_filename)
         CSV.write(results_filepath, df)
     else
-        results_filename = "results_$(problem)_DRS_FP.csv"
+        results_filename = "results_$(problem)_ADMM.csv"
+        results_filepath = joinpath(results_folder, results_filename)
+        CSV.write(results_filepath, df)
+    end
+elseif method == "DRS"
+    if fixed_tol && stop_crit == "Opt"
+        results_filename = "results_$(problem)_DRS_Opt_Eps.csv"
+        results_filepath = joinpath(results_folder, results_filename)
+        CSV.write(results_filepath, df)
+    elseif !fixed_tol && stop_crit == "Opt"
+        results_filename = "results_$(problem)_DRS_Opt_r0.csv"
+        results_filepath = joinpath(results_folder, results_filename)
+        CSV.write(results_filepath, df)
+    elseif fixed_tol && stop_crit == "Fixed_Point"
+        results_filename = "results_$(problem)_DRS_FP_Eps.csv"
+        results_filepath = joinpath(results_folder, results_filename)
+        CSV.write(results_filepath, df)
+    else
+        results_filename = "results_$(problem)_DRS_FP_r0.csv"
         results_filepath = joinpath(results_folder, results_filename)
         CSV.write(results_filepath, df)
     end

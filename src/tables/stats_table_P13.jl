@@ -5,7 +5,7 @@ using Statistics
 
 include("../utility.jl")
 
-methods = ["Gurobi", "DRS", "DRS_Boyd", "DRS_FP"]
+methods = ["Gurobi", "DRS_Opt_Eps", "DRS_Opt_r0", "DRS_FP_Eps", "DRS_FP_r0"]
 
 problems = ["P13"]
 problem = problems[1]
