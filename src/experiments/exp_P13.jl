@@ -16,10 +16,10 @@ method = methods[3]
 # Mixed parameters
 problems = ["P13"]
 problem = problems[1]
-epsilon = 10^(-5)
+epsilon = 10^(-4)
 eps_abs = epsilon
 eps_rel = 10^(-4)
-fixed_tol = false
+fixed_tol = true
 eps_opt = epsilon
 time_limit = 1200
 
