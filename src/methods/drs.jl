@@ -195,3 +195,77 @@ function drs(A::Matrix{Float64}, lambda::Float64, eps_abs::Float64, eps_rel::Flo
         return X, k
     end
 end
+
+function drs_res_data(A::Matrix{Float64}, lambda::Float64, eps_abs::Float64, eps_rel::Float64, problem::String, fixed_tol::Bool, eps_opt::Float64, stop_crit::String, time_limit::Int64)
+    if problem == "P124"
+        A = Matrix(A')
+    end
+    # Initial data
+    m, n = size(A)
+    Xh = zeros(n, m)
+    X = zeros(n, m)
+    # Projection data
+    proj_data = get_proj_data(A , problem)
+    V = proj_data.AMP
+    eps_tol = 10^(-5)
+    start_time = time()
+    res_data = []
+    sol_data = []
+    k = -1
+    while true
+        k += 1
+        Xh = soft_thresholding_matrix(V, lambda)
+        Vh = 2 * Xh - V
+        X = projection(A, Vh, proj_data, problem)
+        push!(sol_data, [Xh, X])
+        if (k == 0) && (fixed_tol == false) && (stop_crit == "Opt")
+            initial_pri_res = primal_residual_matrix(A, Xh, proj_data, problem)
+            initial_dual_res = dual_res = dual_residual_matrix(A, Xh, V, lambda, proj_data, problem)
+            r0 = norm(hcat(initial_pri_res, initial_dual_res))
+            eps_tol = eps_abs + eps_rel * r0
+        elseif (k == 0) && (fixed_tol == false) && (stop_crit == "Fixed_Point")
+            r0 = norm(X - Xh)
+            eps_tol = eps_abs + eps_rel * r0
+        end
+        V += X - Xh
+        if fixed_tol && (stop_crit == "Opt")
+            pri_res = primal_residual(A, Xh, proj_data, problem)
+            dual_res = dual_residual(A, Xh, V, lambda, proj_data, problem)
+            push!(res_data, [pri_res, dual_res])
+            if (pri_res <= eps_opt) && (dual_res <= eps_opt)
+                break
+            end
+        elseif !fixed_tol && (stop_crit == "Opt")
+            pri_res = primal_residual_matrix(A, Xh, proj_data, problem)
+            dual_res = dual_residual_matrix(A, Xh, V, lambda, proj_data, problem)
+            res = hcat(pri_res, dual_res)
+            push!(res_data, norm(res))
+            if norm(res) <= eps_tol
+                break
+            end
+        elseif fixed_tol && (stop_crit == "Fixed_Point")
+            res = norm(X - Xh)
+            push!(res_data, res)
+            if res <= eps_opt
+                break
+            end
+        elseif !fixed_tol && (stop_crit == "Fixed_Point")
+            res = norm(X - Xh)
+            push!(res_data, res)
+            if res <= eps_tol
+                break
+            end
+        end
+        # Checks time limit
+        elapsed_time = time() - start_time
+        if elapsed_time > time_limit
+            println("TimeLimit: DRS exceed time limit to solve the problem.")
+            return "-", k, res_data, sol_data
+        end
+    end
+    if problem == "P124"
+        return Matrix(X'), k, res_data, sol_data
+    else
+        return X, k, res_data, sol_data
+    end
+end
