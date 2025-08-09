@@ -18,8 +18,8 @@ problems = ["P123"]
 problem = problems[1]
 epsilon = 10^(-5)
 eps_abs = epsilon
-eps_rel = 10^(-6)
-fixed_tol = true
+eps_rel = 10^(-3)
+fixed_tol = false
 eps_opt = epsilon
 time_limit = 7200
 
@@ -34,7 +34,7 @@ rho = 3.0
 lambda = 10^(-2)
 
 stop_crits = ["Opt", "Fixed_Point"]
-stop_crit = stop_crits[1]
+stop_crit = stop_crits[2]
 
 matrices_folder = "./instances/rectangular_dense_02"
 m_values = [100, 200, 300, 400, 500, 1000, 2000, 3000, 4000, 5000]
