@@ -130,6 +130,7 @@ function dual_residual_matrix(A::Matrix{Float64}, X::Matrix{Float64}, V::Matrix{
 end
 
 function drs(A::Matrix{Float64}, lambda::Float64, eps_abs::Float64, eps_rel::Float64, problem::String, fixed_tol::Bool, eps_opt::Float64, stop_crit::String, time_limit::Int64)
+    start_time = time()
     if problem == "P124"
         A = Matrix(A')
     end
@@ -141,7 +142,6 @@ function drs(A::Matrix{Float64}, lambda::Float64, eps_abs::Float64, eps_rel::Flo
     proj_data = get_proj_data(A , problem)
     V = proj_data.AMP
     eps_tol = 10^(-5)
-    start_time = time()
     k = -1
     while true
         k += 1
@@ -197,6 +197,7 @@ function drs(A::Matrix{Float64}, lambda::Float64, eps_abs::Float64, eps_rel::Flo
 end
 
 function drs_res_data(A::Matrix{Float64}, lambda::Float64, eps_abs::Float64, eps_rel::Float64, problem::String, fixed_tol::Bool, eps_opt::Float64, stop_crit::String, time_limit::Int64)
+    start_time = time()
     if problem == "P124"
         A = Matrix(A')
     end
@@ -208,7 +209,6 @@ function drs_res_data(A::Matrix{Float64}, lambda::Float64, eps_abs::Float64, eps
     proj_data = get_proj_data(A , problem)
     V = proj_data.AMP
     eps_tol = 10^(-5)
-    start_time = time()
     res_data = []
     sol_data = []
     k = -1
