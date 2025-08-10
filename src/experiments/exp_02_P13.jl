@@ -18,8 +18,8 @@ problems = ["P13"]
 problem = problems[1]
 epsilon = 10^(-5)
 eps_abs = epsilon
-eps_rel = 10^(-4)
-fixed_tol = true
+eps_rel = 10^(-3)
+fixed_tol = false
 eps_opt = epsilon
 time_limit = 7200
 
