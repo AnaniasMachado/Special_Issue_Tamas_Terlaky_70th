@@ -8,25 +8,26 @@ include("../types.jl")
 include("../utility.jl")
 include("../methods/solvers.jl")
 include("../methods/solvers_cal.jl")
+include("../methods/misc.jl")
 include("../methods/admm.jl")
 include("../methods/drs.jl")
 
 methods = ["Gurobi", "Gurobi_Cal", "ADMM", "DRS"]
-method = methods[1]
+method = methods[3]
 
 # Mixed parameters
-problems = ["P123"]
+problems = ["P134"]
 problem = problems[1]
 epsilon = 10^(-5)
 eps_abs = epsilon
-eps_rel = epsilon
+eps_rel = 10^(-3)
 fixed_tol = false
 eps_opt = epsilon
-time_limit = 1200
+time_limit = 7200
 
 # Gurobi parameters
 constraints_set = [["P1", "P3", "P4"], ["PMN", "P3"], ["PLS", "PMN"], ["P13R", "P14R"], ["PMX"]]
-constraints = constraints_set[5]
+constraints = constraints_set[4]
 
 # ADMM parameters
 rho = 3.0
@@ -37,27 +38,21 @@ lambda = 10^(-2)
 stop_crits = ["Opt", "Fixed_Point"]
 stop_crit = stop_crits[1]
 
-matrices_folder = "./instances/rectangular_dense_01"
-mat_files = readdir(matrices_folder)
+matrices_folder = "./instances/square_dense"
+m_values = [100, 200, 300, 400, 500, 1000, 2000, 3000, 4000, 5000]
 
-results_folder = "results/problem_$problem"
+results_folder = "results/problem_$(problem)"
 
-solutions_folder = "./solutions/problem_$problem"
+solutions_folder = "./solutions/problem_$(problem)"
 
 df = DataFrame()
 
-bound_ratio_list = []
-norm_0_ratio_list = []
-norm_1_ratio_list = []
-rank_ratio_list = []
-time_list = []
+min_unsolvable_m = Inf
 
-count = 0
-num_idx = 5
-min_unsolvable_m = Dict()
-
-for mat_file in mat_files
-    global count += 1
+for m in m_values
+    n = m
+    r = Int(m / 4)
+    mat_file = "A_m$(m)_n$(n)_r$(r)_d100_idx1.mat"
 
     mat_path = joinpath(matrices_folder, mat_file)
     mat_data = matread(mat_path)
@@ -68,190 +63,113 @@ for mat_file in mat_files
     A = Matrix(A)
     AMP = pinv(A)
 
-    m_value = match(r"m(\d+)", mat_file).captures[1]
-    n_value = match(r"n(\d+)", mat_file).captures[1]
-    r_value = match(r"r(\d+)", mat_file).captures[1]
-    d_value = match(r"d(\d+)", mat_file).captures[1]
-    idx_value = match(r"idx(\d+)", mat_file).captures[1]
-
-    m = parse(Int, m_value)
-    n = parse(Int, n_value)
-    r = parse(Int, r_value)
-    d = parse(Int, d_value)
-    idx = parse(Int, idx_value)
-
     data = DataInst(A, m, n, r, AMP=AMP)
 
-    if !haskey(min_unsolvable_m, d)
-        min_unsolvable_m[d] = Inf
-    end
-
-    bound_ratio = -1.0
-    norm_0_ratio = -1.0
-    norm_1_ratio = -1.0
-    rank_ratio = -1.0
+    norm_0 = -1.0
+    norm_1 = -1.0
+    rank = -1.0
     time = -1.0
-    if (m < min_unsolvable_m[d])
-        if method == "Gurobi"
-            try
-                time = @elapsed begin
-                    H = gurobi_solver(data, constraints, eps_grb, time_limit)
-                end
-                H_norm_0 = matrix_norm_0(H)
-                H_norm_1 = norm(H, 1)
-                H_rank = calculate_rank(H)
-
-                bound_ratio = H_norm_0 / (m * r)
-                norm_0_ratio = H_norm_0 / matrix_norm_0(AMP)
-                norm_1_ratio = H_norm_1 / norm(AMP, 1)
-                rank_ratio = H_rank / r
-
-                problem_label = join(constraints, "_")
-
-                solution_filename = "Gurobi/problem_$(problem_label)_m_$(m)_n_$(n)_d_$(d)_idx_$(idx)"
-                solution_filepath = joinpath(solutions_folder, solution_filename)
-                matwrite(solution_filepath, Dict("H" => H, "time" => time))
-            catch e
-                if isa(e, ErrorException)
-                    global min_unsolvable_m[d] = min(m, min_unsolvable_m[d])
-                else
-                    throw(ErrorException("Gurobi failed to solve problem something unexpected.", e))
-                end
-            end
-        elseif method == "Gurobi_Cal"
-            try
-                time = @elapsed begin
-                    H = gurobi_solver_cal(data, problem, eps_grb, time_limit)
-                end
-                H_norm_0 = matrix_norm_0(H)
-                H_norm_1 = norm(H, 1)
-                H_rank = calculate_rank(H)
-
-                bound_ratio = H_norm_0 / (m * r)
-                norm_0_ratio = H_norm_0 / matrix_norm_0(AMP)
-                norm_1_ratio = H_norm_1 / norm(AMP, 1)
-                rank_ratio = H_rank / r
-
-                solution_filename = "Gurobi_Cal/problem_$(problem)_m_$(m)_n_$(n)_d_$(d)_idx_$(idx)"
-                solution_filepath = joinpath(solutions_folder, solution_filename)
-                matwrite(solution_filepath, Dict("H" => H, "time" => time))
-            catch e
-                if isa(e, ErrorException)
-                    global min_unsolvable_m[d] = min(m, min_unsolvable_m[d])
-                else
-                    throw(ErrorException("Gurobi failed to solve problem something unexpected.", e))
-                end
-            end
-        elseif method == "ADMM"
+    factor = -1.0
+    if method == "Gurobi"
+        try
             time = @elapsed begin
-                H = admm_p123(A, rho, eps_abs, eps_rel, fixed_tol, eps_opt, time_limit)
+                H = gurobi_solver(data, constraints, eps_opt, time_limit)
             end
-            if H == "-"
-                global min_unsolvable_m[d] = min(m, min_unsolvable_m[d])
+            norm_0 = matrix_norm_0(H)
+            norm_1 = norm(H, 1)
+            rank = calculate_rank(H)
+
+            problem_label = join(constraints, "_")
+
+            solution_filename = "Gurobi/problem_$(problem_label)_m_$(m)_n_$(n)"
+            solution_filepath = joinpath(solutions_folder, solution_filename)
+            matwrite(solution_filepath, Dict("H" => H, "time" => time))
+        catch e
+            if isa(e, ErrorException)
+                global min_unsolvable_m = min(m, min_unsolvable_m)
             else
-                H_norm_0 = matrix_norm_0(H)
-                H_norm_1 = norm(H, 1)
-                H_rank = calculate_rank(H)
-
-                bound_ratio = H_norm_0 / (m * r)
-                norm_0_ratio = H_norm_0 / matrix_norm_0(AMP)
-                norm_1_ratio = H_norm_1 / norm(AMP, 1)
-                rank_ratio = H_rank / r
-
-                if fixed_tol
-                    solution_filename = "ADMMe/problem_$(problem)_m_$(m)_n_$(n)_d_$(d)_idx_$(idx)"
-                    solution_filepath = joinpath(solutions_folder, solution_filename)
-                    matwrite(solution_filepath, Dict("H" => ADMM_H, "time" => ADMM_time))
-                else
-                    solution_filename = "ADMM/problem_$(problem)_m_$(m)_n_$(n)_d_$(d)_idx_$(idx)"
-                    solution_filepath = joinpath(solutions_folder, solution_filename)
-                    matwrite(solution_filepath, Dict("H" => ADMM_H, "time" => ADMM_time))
-                end
+                throw(ErrorException("Gurobi failed to solve problem something unexpected.", e))
             end
-        elseif method == "DRS"
-            time = @elapsed begin
-                H, k = drs(A, lambda, eps_abs, eps_rel, problem, fixed_tol, eps_opt, stop_crit, time_limit)
-            end
-            if H == "-"
-                global min_unsolvable_m[d] = min(m, min_unsolvable_m[d])
-            else
-                H_norm_0 = matrix_norm_0(H)
-                H_norm_1 = norm(H, 1)
-                H_rank = calculate_rank(H)
-
-                bound_ratio = H_norm_0 / (m * r)
-                norm_0_ratio = H_norm_0 / matrix_norm_0(AMP)
-                norm_1_ratio = H_norm_1 / norm(AMP, 1)
-                rank_ratio = H_rank / r
-
-                if fixed_tol && stop_crit == "Opt"
-                    solution_filename = "DRS_Opt_Eps/problem_$(problem)_m_$(m)_n_$(n)_d_$(d)_idx_$(idx)"
-                    solution_filepath = joinpath(solutions_folder, solution_filename)
-                    matwrite(solution_filepath, Dict("H" => H, "time" => time, "k" => k))
-                elseif !fixed_tol && stop_crit == "Opt"
-                    solution_filename = "DRS_Opt_r0/problem_$(problem)_m_$(m)_n_$(n)_d_$(d)_idx_$(idx)"
-                    solution_filepath = joinpath(solutions_folder, solution_filename)
-                    matwrite(solution_filepath, Dict("H" => H, "time" => time, "k" => k))
-                elseif fixed_tol && stop_crit == "Fixed_Point"
-                    solution_filename = "DRS_FP_Eps/problem_$(problem)_m_$(m)_n_$(n)_d_$(d)_idx_$(idx)"
-                    solution_filepath = joinpath(solutions_folder, solution_filename)
-                    matwrite(solution_filepath, Dict("H" => H, "time" => time, "k" => k))
-                elseif !fixed_tol && stop_crit == "Fixed_Point"
-                    solution_filename = "DRS_FP_r0/problem_$(problem)_m_$(m)_n_$(n)_d_$(d)_idx_$(idx)"
-                    solution_filepath = joinpath(solutions_folder, solution_filename)
-                    matwrite(solution_filepath, Dict("H" => H, "time" => time, "k" => k))
-                end
-            end
-        else
-            throw(ErrorException("Invalid method chose."))
         end
-    end
+    elseif method == "Gurobi_Cal"
+        try
+            time = @elapsed begin
+                H = gurobi_solver_cal(data, problem, eps_opt, time_limit)
+            end
+            norm_0 = matrix_norm_0(H)
+            norm_1 = norm(H, 1)
+            rank = calculate_rank(H)
 
-    push!(bound_ratio_list, bound_ratio)
-    push!(norm_0_ratio_list, norm_0_ratio)
-    push!(norm_1_ratio_list, norm_1_ratio)
-    push!(rank_ratio_list, rank_ratio)
-    push!(time_list, time)
+            solution_filename = "Gurobi_Cal/problem_$(problem)_m_$(m)_n_$(n)"
+            solution_filepath = joinpath(solutions_folder, solution_filename)
+            matwrite(solution_filepath, Dict("H" => H, "time" => time))
+        catch e
+            if isa(e, ErrorException)
+                global min_unsolvable_m = min(m, min_unsolvable_m)
+            else
+                throw(ErrorException("Gurobi failed to solve problem something unexpected.", e))
+            end
+        end
+    elseif method == "ADMM"
+        H, k, time, factor = compare_drs_fp(method, A, rho, lambda, eps_abs, eps_rel, problem, fixed_tol, eps_opt, stop_crit, time_limit)
+        norm_0 = matrix_norm_0(H)
+        norm_1 = norm(H, 1)
+        rank = calculate_rank(H)
+
+        if fixed_tol
+            solution_filename = "ADMMe/problem_$(problem)_m_$(m)_n_$(n)"
+            solution_filepath = joinpath(solutions_folder, solution_filename)
+            matwrite(solution_filepath, Dict("H" => H, "time" => time))
+        else
+            solution_filename = "ADMM/problem_$(problem)_m_$(m)_n_$(n)"
+            solution_filepath = joinpath(solutions_folder, solution_filename)
+            matwrite(solution_filepath, Dict("H" => H, "time" => time))
+        end
+    elseif method == "DRS"
+        H, k, time, factor = compare_drs_fp(method, A, rho, lambda, eps_abs, eps_rel, problem, fixed_tol, eps_opt, stop_crit, time_limit)
+        norm_0 = matrix_norm_0(H)
+        norm_1 = norm(H, 1)
+        rank = calculate_rank(H)
+
+        if fixed_tol && stop_crit == "Opt"
+            solution_filename = "DRS_Opt_Eps/problem_$(problem)_m_$(m)_n_$(n)"
+            solution_filepath = joinpath(solutions_folder, solution_filename)
+            matwrite(solution_filepath, Dict("H" => H, "time" => time, "k" => k))
+        elseif !fixed_tol && stop_crit == "Opt"
+            solution_filename = "DRS_Opt_r0/problem_$(problem)_m_$(m)_n_$(n)"
+            solution_filepath = joinpath(solutions_folder, solution_filename)
+            matwrite(solution_filepath, Dict("H" => H, "time" => time, "k" => k))
+        elseif fixed_tol && stop_crit == "Fixed_Point"
+            solution_filename = "DRS_FP_Eps/problem_$(problem)_m_$(m)_n_$(n)"
+            solution_filepath = joinpath(solutions_folder, solution_filename)
+            matwrite(solution_filepath, Dict("H" => H, "time" => time, "k" => k))
+        elseif !fixed_tol && stop_crit == "Fixed_Point"
+            solution_filename = "DRS_FP_r0/problem_$(problem)_m_$(m)_n_$(n)"
+            solution_filepath = joinpath(solutions_folder, solution_filename)
+            matwrite(solution_filepath, Dict("H" => H, "time" => time, "k" => k))
+        end
+    else
+        throw(ErrorException("Invalid method chose."))
+    end
 
     GC.gc()
 
-    if count % num_idx == 0
-        bound_ratio_mean = -1.0
-        norm_0_ratio_mean = -1.0
-        norm_1_ratio_mean = -1.0
-        rank_ratio_mean = -1.0
-        time_mean = -1.0
+    result = DataFrame(
+        m = [m],
+        n = [n],
+        r = [r],
+        AMP_norm_0 = [matrix_norm_0(AMP)],
+        AMP_norm_1 = [norm(AMP, 1)],
+        norm_0 = [norm_0],
+        norm_1 = [norm_1],
+        rank = [rank],
+        time = [time],
+        factor = [factor]
+    )
 
-        if !(-1.0 in bound_ratio_list)
-            bound_ratio_mean = mean(bound_ratio_list)
-            norm_0_ratio_mean = mean(norm_0_ratio_list)
-            norm_1_ratio_mean = mean(norm_1_ratio_list)
-            rank_ratio_mean = mean(rank_ratio_list)
-            time_mean = mean(time_list)
-        end
+    append!(df, result)
 
-        result = DataFrame(
-            m = [m],
-            n = [n],
-            r = [r],
-            d = [d],
-            bound_ratio_mean = [bound_ratio_mean],
-            norm_0_ratio_mean = [norm_0_ratio_mean],
-            norm_1_ratio_mean = [norm_1_ratio_mean],
-            rank_ratio_mean = [rank_ratio_mean],
-            time_mean = [time_mean]
-        )
-
-        append!(df, result)
-
-        empty!(bound_ratio_list)
-        empty!(norm_0_ratio_list)
-        empty!(norm_1_ratio_list)
-        empty!(rank_ratio_list)
-        empty!(time_list)
-
-        GC.gc()
-    end
+    GC.gc()
 end
 
 if method == "Gurobi"

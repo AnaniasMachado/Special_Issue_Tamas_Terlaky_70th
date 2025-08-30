@@ -196,7 +196,7 @@ function drs(A::Matrix{Float64}, lambda::Float64, eps_abs::Float64, eps_rel::Flo
     end
 end
 
-function drs_res_data(A::Matrix{Float64}, lambda::Float64, eps_abs::Float64, eps_rel::Float64, problem::String, fixed_tol::Bool, eps_opt::Float64, stop_crit::String, time_limit::Int64)
+function drs_run_data(A::Matrix{Float64}, lambda::Float64, eps_abs::Float64, eps_rel::Float64, problem::String, fixed_tol::Bool, eps_opt::Float64, stop_crit::String, time_limit::Int64)
     start_time = time()
     if problem == "P124"
         A = Matrix(A')
@@ -211,13 +211,101 @@ function drs_res_data(A::Matrix{Float64}, lambda::Float64, eps_abs::Float64, eps
     eps_tol = 10^(-5)
     res_data = []
     sol_data = []
+    time_data = []
     k = -1
     while true
         k += 1
         Xh = soft_thresholding_matrix(V, lambda)
         Vh = 2 * Xh - V
         X = projection(A, Vh, proj_data, problem)
-        push!(sol_data, [Xh, X])
+        V += X - Xh
+        push!(sol_data, [matrix_norm_0(X), norm(X, 1)])
+        if fixed_tol && (stop_crit == "Opt")
+            pri_res = primal_residual(A, Xh, proj_data, problem)
+            dual_res = dual_residual(A, Xh, V, lambda, proj_data, problem)
+            push!(res_data, [pri_res, dual_res])
+        elseif !fixed_tol && (stop_crit == "Opt")
+            pri_res = primal_residual(A, Xh, proj_data, problem)
+            dual_res = dual_residual(A, Xh, V, lambda, proj_data, problem)
+            push!(res_data, [pri_res, dual_res])
+        elseif fixed_tol && (stop_crit == "Fixed_Point")
+            res = norm(X - Xh)
+            push!(res_data, res)
+        elseif !fixed_tol && (stop_crit == "Fixed_Point")
+            res = norm(X - Xh)
+            push!(res_data, res)
+        end
+        # Checks time limit
+        elapsed_time = time() - start_time
+        push!(time_data, elapsed_time)
+        if elapsed_time > time_limit
+            println("TimeLimit: DRS exceed time limit to solve the problem.")
+            return X, k, res_data, sol_data, time_data
+        end
+    end
+    if problem == "P124"
+        return Matrix(X'), k, res_data, sol_data, time_data
+    else
+        return X, k, res_data, sol_data, time_data
+    end
+end
+
+function drs_closeness(H_ref::Matrix{Float64}, A::Matrix{Float64}, lambda::Float64, eps_abs::Float64, eps_rel::Float64, problem::String, fixed_tol::Bool, eps_opt::Float64, stop_crit::String, time_limit::Int64)
+    start_time = time()
+    if problem == "P124"
+        A = Matrix(A')
+    end
+    # Initial data
+    m, n = size(A)
+    Xh = zeros(n, m)
+    X = zeros(n, m)
+    # Projection data
+    proj_data = get_proj_data(A , problem)
+    V = proj_data.AMP
+    k = -1
+    while true
+        k += 1
+        Xh = soft_thresholding_matrix(V, lambda)
+        Vh = 2 * Xh - V
+        X = projection(A, Vh, proj_data, problem)
+        V += X - Xh
+        factor = abs(norm(X, 1) - norm(H_ref, 1)) / norm(H_ref, 1)
+        if (norm(X, 1) < norm(H_ref, 1)) || (factor <= 10^(-5))
+            break
+        end
+        # Checks time limit
+        elapsed_time = time() - start_time
+        if elapsed_time > time_limit
+            println("TimeLimit: DRS exceed time limit to solve the problem.")
+            return "-", k
+        end
+    end
+    if problem == "P124"
+        return Matrix(X'), k
+    else
+        return X, k
+    end
+end
+
+function drs_max_iter(max_iter::Int64, A::Matrix{Float64}, lambda::Float64, eps_abs::Float64, eps_rel::Float64, problem::String, fixed_tol::Bool, eps_opt::Float64, stop_crit::String, time_limit::Int64)
+    start_time = time()
+    if problem == "P124"
+        A = Matrix(A')
+    end
+    # Initial data
+    m, n = size(A)
+    Xh = zeros(n, m)
+    X = zeros(n, m)
+    # Projection data
+    proj_data = get_proj_data(A , problem)
+    V = proj_data.AMP
+    eps_tol = 10^(-5)
+    k = -1
+    while (k <= max_iter)
+        k += 1
+        Xh = soft_thresholding_matrix(V, lambda)
+        Vh = 2 * Xh - V
+        X = projection(A, Vh, proj_data, problem)
         if (k == 0) && (fixed_tol == false) && (stop_crit == "Opt")
             initial_pri_res = primal_residual_matrix(A, Xh, proj_data, problem)
             initial_dual_res = dual_res = dual_residual_matrix(A, Xh, V, lambda, proj_data, problem)
@@ -231,41 +319,37 @@ function drs_res_data(A::Matrix{Float64}, lambda::Float64, eps_abs::Float64, eps
         if fixed_tol && (stop_crit == "Opt")
             pri_res = primal_residual(A, Xh, proj_data, problem)
             dual_res = dual_residual(A, Xh, V, lambda, proj_data, problem)
-            push!(res_data, [pri_res, dual_res])
             if (pri_res <= eps_opt) && (dual_res <= eps_opt)
-                break
+                continue
             end
         elseif !fixed_tol && (stop_crit == "Opt")
             pri_res = primal_residual_matrix(A, Xh, proj_data, problem)
             dual_res = dual_residual_matrix(A, Xh, V, lambda, proj_data, problem)
             res = hcat(pri_res, dual_res)
-            push!(res_data, norm(res))
             if norm(res) <= eps_tol
-                break
+                continue
             end
         elseif fixed_tol && (stop_crit == "Fixed_Point")
             res = norm(X - Xh)
-            push!(res_data, res)
             if res <= eps_opt
-                break
+                continue
             end
         elseif !fixed_tol && (stop_crit == "Fixed_Point")
             res = norm(X - Xh)
-            push!(res_data, res)
             if res <= eps_tol
-                break
+                continue
             end
         end
         # Checks time limit
         elapsed_time = time() - start_time
         if elapsed_time > time_limit
             println("TimeLimit: DRS exceed time limit to solve the problem.")
-            return "-", k, res_data, sol_data
+            return "-", k
         end
     end
     if problem == "P124"
-        return Matrix(X'), k, res_data, sol_data
+        return Matrix(X'), k
     else
-        return X, k, res_data, sol_data
+        return X, k
     end
 end

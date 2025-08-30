@@ -17,8 +17,8 @@ function rename_files(folder::String, old_substring::String, new_substring::Stri
     end
 end
 
-folder = "./solutions/problem_P13/DRS_FP_r0"
-old_substring = "idx"
-new_substring = "d_100_idx"
+folder = "./instances/square_dense_test"
+old_substring = "experiment_5_matrix"
+new_substring = "A"
 
 rename_files(folder, old_substring, new_substring)

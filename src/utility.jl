@@ -1,6 +1,6 @@
 using LinearAlgebra
 
-epsilon = 10^(-5)
+epsilon_util = 10^(-5)
 
 function gen_random_rank_r_matrix(m::Int64, n::Int64, r::Int64)
     A = rand(m, n)
@@ -14,14 +14,14 @@ function gen_random_rank_r_matrix(m::Int64, n::Int64, r::Int64)
 end
 
 # function matrix_norm_0(A::Matrix{Float64})
-#     norm_0 = count(x -> abs(x) > epsilon, A)
+#     norm_0 = count(x -> abs(x) > epsilon_util, A)
 #     return norm_0
 # end
 
 function matrix_norm_0(A::Union{Matrix{Float64}, Matrix{Int64}})
     norm_0 = 0
     for a in A
-        if abs(a) > epsilon
+        if abs(a) > epsilon_util
             norm_0 += 1
         end
     end
@@ -33,7 +33,7 @@ function calculate_rank(A::Union{Matrix{Float64}, Matrix{Int64}})
     S = Diagonal(S)
     rank = 0
     for s in S
-        if abs(s) > epsilon
+        if abs(s) > epsilon_util
             rank += 1
         end
     end
@@ -43,7 +43,7 @@ end
 function count_singular_values(S::Diagonal)
     rank = 0
     for a in S
-        if abs(a) > epsilon
+        if abs(a) > epsilon_util
             rank += 1
         end
     end
