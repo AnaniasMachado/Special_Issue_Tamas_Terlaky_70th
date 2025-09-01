@@ -11,7 +11,7 @@ include("../methods/solvers_cal.jl")
 include("../methods/drs.jl")
 
 methods = ["Gurobi", "Gurobi_Cal", "DRS"]
-method = methods[2]
+method = methods[1]
 
 # Mixed parameters
 problems = ["P134"]
@@ -25,7 +25,7 @@ time_limit = 1200
 
 # Gurobi parameters
 constraints_set = [["P1", "P3", "P4"], ["PMN", "P3"], ["PLS", "PMN"], ["P13R", "P14R"], ["PMX"]]
-constraints = constraints_set[1]
+constraints = constraints_set[5]
 
 # DRS parameters
 lambda = 10^(-2)
