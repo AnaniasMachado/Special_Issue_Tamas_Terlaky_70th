@@ -5,7 +5,7 @@ using LaTeXStrings
 
 problem = "P123"
 time_begin = 51
-time_end = 1201
+time_end = 2001
 start = 1
 step = 50
 
