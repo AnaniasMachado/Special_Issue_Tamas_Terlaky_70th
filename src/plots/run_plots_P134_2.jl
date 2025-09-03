@@ -3,9 +3,9 @@ using DataFrames
 using Plots
 using LaTeXStrings
 
-problem = "P123"
+problem = "P134"
 time_begin = 51
-time_end = 1201
+time_end = 4001
 start = 1
 step = 50
 
