@@ -27,10 +27,10 @@ df_drs_fp  = df_drs_fp[start:step:end, :]
 
 default(markersize=3)
 
-scatter(df_drs_fp.time, df_drs_fp.H_norm_0, label=L"\textrm{DRS}_{FP}", xlabel=L"\textrm{time}", ylabel=L"||\textrm{H}||_0")
+scatter(df_drs_fp.time, df_drs_fp.H_norm_0, label=L"\textrm{DRS}_{FP}", xlabel=L"\textrm{time}", ylabel=L"\Vert\!\!\textrm{H}\Vert_0")
 scatter!(df_admm.time, df_admm.H_norm_0, label=L"\textrm{ADMM}")
 savefig("Plots/problem_$(problem)/problem_$(problem)_H_norm_0_sliced.png")
 
-scatter(df_drs_fp.time, df_drs_fp.H_norm_1, label=L"\textrm{DRS}_{FP}", xlabel=L"\textrm{time}", ylabel=L"||\textrm{H}||_1")
+scatter(df_drs_fp.time, df_drs_fp.H_norm_1, label=L"\textrm{DRS}_{FP}", xlabel=L"\textrm{time}", ylabel=L"\Vert\!\!\textrm{H}\Vert_1")
 scatter!(df_admm.time, df_admm.H_norm_1, label=L"\textrm{ADMM}")
 savefig("Plots/problem_$(problem)/problem_$(problem)_H_norm_1_sliced.png")
